@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Maison">
+<title>Maison</title>
+<style>
+  :root { --bg:#f4f1ea; --card:#ffffff; --txt:#1d1d1f; --muted:#6e6e73; --accent:#c2410c; }
+  body.nuit { --bg:#000; --card:#111; --txt:#8a8a8a; --muted:#555; --accent:#7a4a2a; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; }
+  body {
+    background:var(--bg); color:var(--txt);
+    font-family:-apple-system, "Helvetica Neue", Arial, sans-serif;
+    padding:24px; display:grid; gap:20px;
+    grid-template-columns:1.1fr 1fr; grid-template-rows:1fr auto;
+    transition:background .6s, color .6s;
+    -webkit-user-select:none; user-select:none;
+  }
+  .carte { background:var(--card); border-radius:24px; padding:28px; }
+  #horloge { display:flex; flex-direction:column; justify-content:center; }
+  #heure { font-size:150px; font-weight:600; line-height:1; letter-spacing:-4px; font-variant-numeric:tabular-nums; }
+  #date { font-size:38px; margin-top:12px; text-transform:capitalize; }
+  #meteo { display:flex; flex-direction:column; justify-content:space-between; }
+  .maintenant { display:flex; align-items:center; gap:20px; }
+  .icone { font-size:96px; line-height:1; }
+  #temp { font-size:88px; font-weight:600; }
+  #ciel { font-size:30px; color:var(--muted); margin-top:4px; }
+  .jours { display:flex; gap:16px; margin-top:16px; }
+  .jour { flex:1; background:var(--bg); border-radius:16px; padding:12px 8px; font-size:24px; text-align:center; white-space:nowrap; }
+  .jour b { display:block; font-size:20px; color:var(--muted); font-weight:500; }
+  .jour i { display:block; font-style:normal; font-size:42px; margin:4px 0; }
+  #conseil { font-size:28px; color:var(--accent); font-weight:600; margin-top:14px; }
+  #bas { grid-column:1 / 3; display:flex; gap:20px; }
+  #bas .carte { padding:20px 28px; font-size:28px; }
+  #tokyo { flex:0 0 auto; }
+  #tokyo b, #rappels b { display:block; font-size:20px; color:var(--muted); font-weight:500; margin-bottom:4px; }
+  #rappels { flex:1; }
+  .rappel { display:inline-block; margin-right:28px; }
+  .erreur { color:var(--muted); font-size:24px; }
+  /* Écran plus petit / portrait */
+  @media (max-width:900px), (orientation:portrait) {
+    body { grid-template-columns:1fr; grid-template-rows:auto auto auto; }
+    #bas { grid-column:1; flex-direction:column; }
+    #heure { font-size:120px; }
+  }
+</style>
+</head>
+<body>
+
+<section class="carte" id="horloge">
+  <div id="heure">--:--</div>
+  <div id="date"></div>
+</section>
+
+<section class="carte" id="meteo">
+  <div>
+    <div class="maintenant">
+      <div class="icone" id="icone">·</div>
+      <div>
+        <div id="temp">--°</div>
+        <div id="ciel">Chargement…</div>
+      </div>
+    </div>
+    <div id="conseil"></div>
+  </div>
+  <div class="jours" id="jours"></div>
+</section>
+
+<section id="bas">
+  <div class="carte" id="tokyo"><b>À Tokyo</b><span id="tokyo-txt">--:--</span></div>
+  <div class="carte" id="rappels"><b>À venir</b><span id="rappels-txt"></span></div>
+</section>
+
+<script>
+/* ====================== CONFIGURATION ====================== */
+var CONFIG = {
+  ville: "Paris",
+  latitude: 48.8566,
+  longitude: 2.3522,
+  nuitDebut: 22,   // heure à partir de laquelle l'écran passe en mode nuit
+  nuitFin: 7
+};
+
+// Rappels annuels : "MM-JJ". Rappels hebdo : jour 0 = dimanche … 6 = samedi.
+var RAPPELS = [
+  { date: "12-25", texte: "🎄 Noël" },
+  { date: "01-01", texte: "🥂 Nouvel an" },
+  { date: "02-01", texte: "✈️ Arnaud commence à Tokyo" }
+  // { date: "03-14", texte: "🎂 Anniversaire de Papa" },
+  // { jour: 2, texte: "🗑️ Sortir les poubelles" }
+];
+/* =========================================================== */
+
+var JOURS = ["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
+var MOIS = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+
+function deux(n) { return n < 10 ? "0" + n : "" + n; }
+
+/* ---------- Horloge, mode nuit, Tokyo ---------- */
+function majHorloge() {
+  var d = new Date();
+  document.getElementById("heure").textContent = deux(d.getHours()) + ":" + deux(d.getMinutes());
+  document.getElementById("date").textContent =
+    JOURS[d.getDay()] + " " + d.getDate() + " " + MOIS[d.getMonth()] + " " + d.getFullYear();
+
+  var h = d.getHours();
+  var nuit = CONFIG.nuitDebut > CONFIG.nuitFin ? (h >= CONFIG.nuitDebut || h < CONFIG.nuitFin)
+                                               : (h >= CONFIG.nuitDebut && h < CONFIG.nuitFin);
+  document.body.className = nuit ? "nuit" : "";
+
+  var tokyo = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Asia/Tokyo", weekday: "long", hour: "2-digit", minute: "2-digit"
+  }).format(d);
+  document.getElementById("tokyo-txt").textContent = tokyo;
+}
+
+/* ---------- Rappels (7 prochains jours) ---------- */
+function majRappels() {
+  var res = [];
+  var auj = new Date(); auj.setHours(0, 0, 0, 0);
+  for (var i = 0; i < 7; i++) {
+    var j = new Date(auj.getTime() + i * 86400000);
+    var mmjj = deux(j.getMonth() + 1) + "-" + deux(j.getDate());
+    var quand = i === 0 ? "Aujourd'hui" : i === 1 ? "Demain" : JOURS[j.getDay()].charAt(0).toUpperCase() + JOURS[j.getDay()].slice(1);
+    RAPPELS.forEach(function (r) {
+      if (r.date === mmjj || r.jour === j.getDay()) res.push("<span class='rappel'>" + quand + " : " + r.texte + "</span>");
+    });
+  }
+  document.getElementById("rappels-txt").innerHTML = res.length ? res.join("") : "Rien de prévu cette semaine";
+}
+
+/* ---------- Météo (Open-Meteo, sans clé) ---------- */
+// Codes météo WMO -> [icône, libellé]
+function ciel(code) {
+  if (code === 0) return ["☀️", "Ciel dégagé"];
+  if (code <= 2) return ["🌤️", "Peu nuageux"];
+  if (code === 3) return ["☁️", "Couvert"];
+  if (code <= 48) return ["🌫️", "Brouillard"];
+  if (code <= 57) return ["🌦️", "Bruine"];
+  if (code <= 67) return ["🌧️", "Pluie"];
+  if (code <= 77) return ["🌨️", "Neige"];
+  if (code <= 82) return ["🌧️", "Averses"];
+  if (code <= 86) return ["🌨️", "Averses de neige"];
+  return ["⛈️", "Orage"];
+}
+
+function majMeteo() {
+  var url = "https://api.open-meteo.com/v1/forecast?latitude=" + CONFIG.latitude +
+    "&longitude=" + CONFIG.longitude +
+    "&current=temperature_2m,weather_code" +
+    "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
+    "&timezone=Europe%2FParis&forecast_days=3";
+
+  fetch(url).then(function (r) { return r.json(); }).then(function (m) {
+    var c = ciel(m.current.weather_code);
+    document.getElementById("icone").textContent = c[0];
+    document.getElementById("temp").textContent = Math.round(m.current.temperature_2m) + "°";
+    document.getElementById("ciel").textContent = c[1] + " à " + CONFIG.ville;
+
+    var j2 = JOURS[(new Date().getDay() + 2) % 7];
+    var noms = ["Aujourd'hui", "Demain", j2.charAt(0).toUpperCase() + j2.slice(1)];
+    var html = "";
+    for (var i = 0; i < 3; i++) {
+      var cj = ciel(m.daily.weather_code[i]);
+      html += "<div class='jour'><b>" + noms[i] + "</b><i>" + cj[0] + "</i>" +
+        Math.round(m.daily.temperature_2m_min[i]) + "° / " + Math.round(m.daily.temperature_2m_max[i]) + "°</div>";
+    }
+    document.getElementById("jours").innerHTML = html;
+
+    var pluie = m.daily.precipitation_probability_max[0];
+    var conseil = "";
+    if (pluie >= 50) conseil = "☂️ Prenez un parapluie (" + pluie + " % de risque de pluie)";
+    else if (m.daily.temperature_2m_min[0] <= 0) conseil = "🧣 Gel possible ce matin, couvrez-vous";
+    else if (m.daily.temperature_2m_max[0] >= 30) conseil = "🥵 Forte chaleur, pensez à boire";
+    document.getElementById("conseil").textContent = conseil;
+  }).catch(function () {
+    document.getElementById("ciel").innerHTML = "<span class='erreur'>Météo indisponible, nouvel essai bientôt</span>";
+  });
+}
+
+/* ---------- Boucles ---------- */
+majHorloge(); majRappels(); majMeteo();
+setInterval(majHorloge, 10 * 1000);          // horloge : toutes les 10 s
+setInterval(majMeteo, 15 * 60 * 1000);       // météo : toutes les 15 min
+setInterval(majRappels, 60 * 60 * 1000);     // rappels : toutes les heures
+setTimeout(function () { location.reload(); }, 6 * 60 * 60 * 1000); // rechargement complet toutes les 6 h (récupère tes modifs)
+</script>
+</body>
+</html>
