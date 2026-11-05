@@ -1,2 +1,2 @@
 # Home
-Home assistant
+Dashboard for home assistant 
