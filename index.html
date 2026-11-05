@@ -9,14 +9,14 @@
 <title>Maison</title>
 <style>
   :root { --bg:#f4f1ea; --card:#ffffff; --txt:#1d1d1f; --muted:#6e6e73; --accent:#c2410c; }
-  body.nuit { --bg:#000; --card:#111; --txt:#8a8a8a; --muted:#555; --accent:#7a4a2a; }
+  body.nuit { --bg:#0a0f1e; --card:#131c33; --txt:#9fb0cc; --muted:#5a6a86; --accent:#e0a561; }
   * { box-sizing:border-box; margin:0; padding:0; }
   html, body { height:100%; }
   body {
     background:var(--bg); color:var(--txt);
     font-family:-apple-system, "Helvetica Neue", Arial, sans-serif;
     padding:24px; display:grid; gap:20px;
-    grid-template-columns:1.1fr 1fr; grid-template-rows:1fr auto;
+    grid-template-columns:1.1fr 1fr; grid-template-rows:1fr auto auto;
     transition:background .6s, color .6s;
     -webkit-user-select:none; user-select:none;
   }
@@ -34,17 +34,36 @@
   .jour b { display:block; font-size:20px; color:var(--muted); font-weight:500; }
   .jour i { display:block; font-style:normal; font-size:42px; margin:4px 0; }
   #conseil { font-size:28px; color:var(--accent); font-weight:600; margin-top:14px; }
+  /* Bandeau actualité (pleine largeur) */
+  #actu { grid-column:1 / 3; display:flex; align-items:center; gap:24px; padding:22px 28px; }
+  #actu b { flex:0 0 auto; font-size:24px; color:var(--accent); font-weight:600; }
+  #actu-txt {
+    flex:1; font-size:36px; font-weight:600; line-height:1.15; transition:opacity .4s;
+    display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;
+  }
   #bas { grid-column:1 / 3; display:flex; gap:20px; }
-  #bas .carte { padding:20px 28px; font-size:28px; }
-  #tokyo { flex:0 0 auto; }
-  #tokyo b, #rappels b { display:block; font-size:20px; color:var(--muted); font-weight:500; margin-bottom:4px; }
-  #rappels { flex:1; }
-  .rappel { display:inline-block; margin-right:28px; }
+  #bas .carte { padding:20px 28px; }
+  .ville { flex:1; display:flex; flex-direction:column; justify-content:center; }
+  .ville b { display:block; font-size:22px; color:var(--muted); font-weight:500; margin-bottom:6px; }
+  .ville-heure { font-size:56px; font-weight:600; line-height:1; letter-spacing:-2px; font-variant-numeric:tabular-nums; }
+  .ville-jour { display:block; font-size:22px; color:var(--muted); text-transform:capitalize; margin-top:6px; }
+  .bouton-youtube {
+    flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:16px;
+    background:#ff0000; color:#fff; text-decoration:none; font-size:34px; font-weight:600;
+    padding:0 44px; border-radius:24px; transition:transform .15s, filter .15s;
+  }
+  .bouton-youtube:active { transform:scale(.96); }
+  .bouton-youtube .yt-play {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:60px; height:44px; background:#fff; color:#ff0000; border-radius:12px; font-size:24px; padding-left:4px;
+  }
+  body.nuit .bouton-youtube { filter:brightness(.55); }
   .erreur { color:var(--muted); font-size:24px; }
   /* Écran plus petit / portrait */
   @media (max-width:900px), (orientation:portrait) {
-    body { grid-template-columns:1fr; grid-template-rows:auto auto auto; }
-    #bas { grid-column:1; flex-direction:column; }
+    body { grid-template-columns:1fr; grid-template-rows:auto auto auto auto; }
+    #actu, #bas { grid-column:1; }
+    #bas { flex-direction:column; }
     #heure { font-size:120px; }
   }
 </style>
@@ -70,9 +89,26 @@
   <div class="jours" id="jours"></div>
 </section>
 
+<section class="carte" id="actu">
+  <b>📰 Actualité</b>
+  <div id="actu-txt">Chargement…</div>
+</section>
+
 <section id="bas">
-  <div class="carte" id="tokyo"><b>À Tokyo</b><span id="tokyo-txt">--:--</span></div>
-  <div class="carte" id="rappels"><b>À venir</b><span id="rappels-txt"></span></div>
+  <div class="carte ville" id="tokyo">
+    <b>🗼 Tokyo</b>
+    <span class="ville-heure" id="tokyo-heure">--:--</span>
+    <span class="ville-jour" id="tokyo-jour"></span>
+  </div>
+  <div class="carte ville" id="sf">
+    <b>🌉 San Francisco</b>
+    <span class="ville-heure" id="sf-heure">--:--</span>
+    <span class="ville-jour" id="sf-jour"></span>
+  </div>
+  <a class="bouton-youtube" id="youtube" href="https://www.youtube.com/">
+    <span class="yt-play">▶</span>
+    <span>YouTube</span>
+  </a>
 </section>
 
 <script>
@@ -81,18 +117,9 @@ var CONFIG = {
   ville: "Paris",
   latitude: 48.8566,
   longitude: 2.3522,
-  nuitDebut: 22,   // heure à partir de laquelle l'écran passe en mode nuit
+  nuitDebut: 19,   // heure à partir de laquelle l'écran passe en mode nuit
   nuitFin: 7
 };
-
-// Rappels annuels : "MM-JJ". Rappels hebdo : jour 0 = dimanche … 6 = samedi.
-var RAPPELS = [
-  { date: "12-25", texte: "🎄 Noël" },
-  { date: "01-01", texte: "🥂 Nouvel an" },
-  { date: "02-01", texte: "✈️ Arnaud commence à Tokyo" }
-  // { date: "03-14", texte: "🎂 Anniversaire de Papa" },
-  // { jour: 2, texte: "🗑️ Sortir les poubelles" }
-];
 /* =========================================================== */
 
 var JOURS = ["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
@@ -100,7 +127,7 @@ var MOIS = ["janvier","février","mars","avril","mai","juin","juillet","août","
 
 function deux(n) { return n < 10 ? "0" + n : "" + n; }
 
-/* ---------- Horloge, mode nuit, Tokyo ---------- */
+/* ---------- Horloge locale, mode nuit ---------- */
 function majHorloge() {
   var d = new Date();
   document.getElementById("heure").textContent = deux(d.getHours()) + ":" + deux(d.getMinutes());
@@ -110,27 +137,60 @@ function majHorloge() {
   var h = d.getHours();
   var nuit = CONFIG.nuitDebut > CONFIG.nuitFin ? (h >= CONFIG.nuitDebut || h < CONFIG.nuitFin)
                                                : (h >= CONFIG.nuitDebut && h < CONFIG.nuitFin);
-  document.body.className = nuit ? "nuit" : "";
-
-  var tokyo = new Intl.DateTimeFormat("fr-FR", {
-    timeZone: "Asia/Tokyo", weekday: "long", hour: "2-digit", minute: "2-digit"
-  }).format(d);
-  document.getElementById("tokyo-txt").textContent = tokyo;
+  document.body.classList.toggle("nuit", nuit);
 }
 
-/* ---------- Rappels (7 prochains jours) ---------- */
-function majRappels() {
-  var res = [];
-  var auj = new Date(); auj.setHours(0, 0, 0, 0);
-  for (var i = 0; i < 7; i++) {
-    var j = new Date(auj.getTime() + i * 86400000);
-    var mmjj = deux(j.getMonth() + 1) + "-" + deux(j.getDate());
-    var quand = i === 0 ? "Aujourd'hui" : i === 1 ? "Demain" : JOURS[j.getDay()].charAt(0).toUpperCase() + JOURS[j.getDay()].slice(1);
-    RAPPELS.forEach(function (r) {
-      if (r.date === mmjj || r.jour === j.getDay()) res.push("<span class='rappel'>" + quand + " : " + r.texte + "</span>");
+/* ---------- Horloges du monde (Tokyo, San Francisco) ---------- */
+function majVille(tz, idHeure, idJour) {
+  var parts = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: tz, weekday: "long", hour: "2-digit", minute: "2-digit", hour12: false
+  }).formatToParts(new Date());
+  var m = {};
+  parts.forEach(function (p) { m[p.type] = p.value; });
+  document.getElementById(idHeure).textContent = m.hour + ":" + m.minute;
+  document.getElementById(idJour).textContent = m.weekday;
+}
+function majVilles() {
+  majVille("Asia/Tokyo", "tokyo-heure", "tokyo-jour");
+  majVille("America/Los_Angeles", "sf-heure", "sf-jour");
+}
+
+/* ---------- Actualité (France Info, RSS, CORS OK) ---------- */
+var ACTU = [];        // titres chargés depuis le flux
+var actuIdx = 0;
+
+function majActu() {
+  fetch("https://www.franceinfo.fr/titres.rss")
+    .then(function (r) { return r.text(); })
+    .then(function (txt) {
+      var doc = new DOMParser().parseFromString(txt, "application/xml");
+      var titres = [];
+      var items = doc.querySelectorAll("item > title");
+      for (var i = 0; i < items.length && titres.length < 6; i++) {
+        var t = items[i].textContent.trim();
+        if (t) titres.push(t);
+      }
+      if (titres.length) {
+        var premier = !ACTU.length;      // premier chargement réussi ?
+        ACTU = titres;                   // on ne remplace que si on a bien reçu des titres
+        if (premier) rotationActu();     // affiche un titre tout de suite, sans attendre les 12 s
+      }
+    })
+    .catch(function () {
+      if (!ACTU.length) document.getElementById("actu-txt").innerHTML =
+        "<span class='erreur'>Actualité indisponible, nouvel essai bientôt</span>";
     });
-  }
-  document.getElementById("rappels-txt").innerHTML = res.length ? res.join("") : "Rien de prévu cette semaine";
+}
+
+function rotationActu() {
+  if (!ACTU.length) return;
+  var el = document.getElementById("actu-txt");
+  el.style.opacity = 0;                    // fondu sortant
+  setTimeout(function () {
+    el.textContent = ACTU[actuIdx % ACTU.length];
+    actuIdx++;
+    el.style.opacity = 1;                  // fondu entrant
+  }, 400);
 }
 
 /* ---------- Météo (Open-Meteo, sans clé) ---------- */
@@ -183,10 +243,12 @@ function majMeteo() {
 }
 
 /* ---------- Boucles ---------- */
-majHorloge(); majRappels(); majMeteo();
+majHorloge(); majVilles(); majMeteo(); majActu(); rotationActu();
 setInterval(majHorloge, 10 * 1000);          // horloge : toutes les 10 s
+setInterval(majVilles, 10 * 1000);           // horloges Tokyo / San Francisco : toutes les 10 s
 setInterval(majMeteo, 15 * 60 * 1000);       // météo : toutes les 15 min
-setInterval(majRappels, 60 * 60 * 1000);     // rappels : toutes les heures
+setInterval(majActu, 15 * 60 * 1000);        // actualité : récupère les titres toutes les 15 min
+setInterval(rotationActu, 12 * 1000);        // défilement des titres : toutes les 12 s
 setTimeout(function () { location.reload(); }, 6 * 60 * 60 * 1000); // rechargement complet toutes les 6 h (récupère tes modifs)
 </script>
 </body>
